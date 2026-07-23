@@ -1,6 +1,6 @@
 # Monitoring Systeme
 
-Application de bureau légère pour surveiller CPU, RAM, disque, énergie, batterie et températures en temps réel.
+Application de bureau légère pour surveiller CPU, RAM, disque, énergie, batterie et températures en temps réel
 
 **Stack :** Tauri v2 · React · TypeScript · Tailwind CSS · Rust
 
