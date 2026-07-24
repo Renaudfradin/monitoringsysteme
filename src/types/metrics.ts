@@ -50,13 +50,86 @@ export interface TemperatureMetrics {
   available: boolean;
 }
 
+export interface CpuInfo {
+  brand: string;
+  vendor: string | null;
+  cores: number | null;
+  performanceCores: number | null;
+  efficiencyCores: number | null;
+  frequencyMhz: number | null;
+}
+
+export interface GpuInfo {
+  name: string;
+  chipset: string | null;
+  vendor: string | null;
+  cores: number | null;
+  vramBytes: number | null;
+  metalSupport: string | null;
+  bus: string | null;
+}
+
+export interface MemoryModule {
+  sizeBytes: number | null;
+  typeName: string | null;
+  speedMhz: number | null;
+  manufacturer: string | null;
+  partNumber: string | null;
+  serial: string | null;
+  slot: string | null;
+}
+
+export interface MemoryInfo {
+  totalBytes: number | null;
+  typeName: string | null;
+  manufacturer: string | null;
+  modules: MemoryModule[];
+}
+
+export interface StorageInfo {
+  name: string;
+  model: string | null;
+  mediumType: string | null;
+  protocol: string | null;
+  sizeBytes: number | null;
+  serial: string | null;
+  smartStatus: string | null;
+  mountPoint: string | null;
+  bsdName: string | null;
+}
+
+export interface DisplayInfo {
+  name: string;
+  resolution: string | null;
+  pixelResolution: string | null;
+  displayType: string | null;
+  connection: string | null;
+  vendorId: string | null;
+  productId: string | null;
+  serial: string | null;
+  main: boolean;
+}
+
 export interface SystemInfo {
   hostname: string;
+  model: string;
+  modelName: string | null;
+  modelNumber: string | null;
+  serialNumber: string | null;
+  hardwareUuid: string | null;
+  firmwareVersion: string | null;
   osName: string;
   osVersion: string;
+  osBuild: string | null;
+  osLongName: string | null;
+  kernelVersion: string | null;
   arch: string;
   uptimeSecs: number;
-  model: string;
+  cpu: CpuInfo | null;
+  gpu: GpuInfo[];
+  memory: MemoryInfo | null;
+  storage: StorageInfo[];
+  displays: DisplayInfo[];
 }
 
 export interface AllMetrics {

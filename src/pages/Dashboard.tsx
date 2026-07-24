@@ -8,10 +8,22 @@ import {
   formatDuration,
   formatUptime,
 } from "@/lib/utils";
+import type {
+  CpuInfo,
+  DisplayInfo,
+  GpuInfo,
+  MemoryInfo,
+  StorageInfo,
+  SystemInfo,
+} from "@/types/metrics";
 
 export function Dashboard() {
   const { metrics, error, loading } = useMetrics();
   const { cpu, memory, disk, energy, battery, temperature, system } = metrics;
+
+  const machineLabel = system
+    ? [system.modelName, system.model].filter(Boolean).join(" · ") || system.model
+    : null;
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-md flex-col gap-3 px-4 py-5">
@@ -24,7 +36,7 @@ export function Dashboard() {
         </h1>
         {system ? (
           <p className="mt-1 text-[13px] text-[var(--color-muted)]">
-            {system.model} · {system.hostname}
+            {machineLabel} · {system.hostname}
           </p>
         ) : (
           <p className="mt-1 text-[13px] text-[var(--color-muted)]">
@@ -43,7 +55,9 @@ export function Dashboard() {
         <MetricCard
           title="CPU"
           percent={cpu.usage}
-          detail={`${cpu.coreCount} cœurs · ${cpu.frequencyMhz} MHz · load ${cpu.loadAvg.toFixed(2)}`}
+          detail={`${cpu.coreCount} cœurs · ${cpu.frequencyMhz} MHz · load ${cpu.loadAvg.toFixed(2)}${
+            system?.cpu?.brand ? ` · ${system.cpu.brand}` : ""
+          }`}
           footer={
             <div className="flex flex-wrap gap-1">
               {cpu.cores.map((c, i) => (
@@ -69,7 +83,9 @@ export function Dashboard() {
         <MetricCard
           title="RAM"
           percent={memory.percent}
-          detail={`${formatBytes(memory.usedBytes)} utilisés · ${formatBytes(memory.totalBytes)} total`}
+          detail={`${formatBytes(memory.usedBytes)} utilisés · ${formatBytes(memory.totalBytes)} total${
+            system?.memory?.typeName ? ` · ${system.memory.typeName}` : ""
+          }`}
         />
       ) : (
         <SkeletonCard title="RAM" />
@@ -79,7 +95,13 @@ export function Dashboard() {
         <MetricCard
           title="Disque"
           percent={disk.percent}
-          detail={`${formatBytes(disk.usedBytes)} / ${formatBytes(disk.totalBytes)}${disk.name ? ` · ${disk.name}` : ""}`}
+          detail={`${formatBytes(disk.usedBytes)} / ${formatBytes(disk.totalBytes)}${
+            system?.storage?.[0]?.model
+              ? ` · ${system.storage[0].model}`
+              : disk.name
+                ? ` · ${disk.name}`
+                : ""
+          }`}
         />
       ) : (
         <SkeletonCard title="Disque" />
@@ -133,24 +155,205 @@ export function Dashboard() {
         </Card>
       ) : null}
 
-      {system ? (
-        <Card className="mb-2">
-          <CardHeader>
-            <CardTitle>Système</CardTitle>
-          </CardHeader>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px]">
-            <dt className="text-[var(--color-muted)]">OS</dt>
-            <dd>
-              {system.osName} {system.osVersion}
-            </dd>
-            <dt className="text-[var(--color-muted)]">Arch</dt>
-            <dd>{system.arch}</dd>
-            <dt className="text-[var(--color-muted)]">Uptime</dt>
-            <dd>{formatUptime(system.uptimeSecs)}</dd>
-          </dl>
-        </Card>
-      ) : null}
+      {system ? <SystemDetails system={system} /> : null}
     </div>
+  );
+}
+
+function SystemDetails({ system }: { system: SystemInfo }) {
+  return (
+    <div className="mb-2 flex flex-col gap-3">
+      <Card>
+        <CardHeader>
+          <CardTitle>Système</CardTitle>
+        </CardHeader>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[13px]">
+          <InfoRow label="OS" value={system.osLongName ?? `${system.osName} ${system.osVersion}`} />
+          <InfoRow label="Version" value={system.osVersion} />
+          <InfoRow label="Build" value={system.osBuild} />
+          <InfoRow label="Noyau" value={system.kernelVersion} />
+          <InfoRow label="Arch" value={system.arch} />
+          <InfoRow label="Uptime" value={formatUptime(system.uptimeSecs)} />
+          <InfoRow label="Hôte" value={system.hostname} />
+        </dl>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Machine</CardTitle>
+        </CardHeader>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[13px]">
+          <InfoRow label="Nom" value={system.modelName} />
+          <InfoRow label="Identifiant" value={system.model} />
+          <InfoRow label="Réf. modèle" value={system.modelNumber} />
+          <InfoRow label="N° série" value={system.serialNumber} />
+          <InfoRow label="UUID" value={system.hardwareUuid} />
+          <InfoRow label="Firmware" value={system.firmwareVersion} />
+        </dl>
+      </Card>
+
+      {system.cpu ? <CpuDetails cpu={system.cpu} /> : null}
+      {system.memory ? <MemoryDetails memory={system.memory} /> : null}
+      {system.gpu.map((gpu, i) => (
+        <GpuDetails key={`${gpu.name}-${i}`} gpu={gpu} index={i} />
+      ))}
+      {system.storage.map((disk, i) => (
+        <StorageDetails key={`${disk.bsdName ?? disk.name}-${i}`} disk={disk} />
+      ))}
+      {system.displays.map((display, i) => (
+        <DisplayDetails key={`${display.name}-${i}`} display={display} />
+      ))}
+    </div>
+  );
+}
+
+function CpuDetails({ cpu }: { cpu: CpuInfo }) {
+  const topology = [
+    cpu.cores != null ? `${cpu.cores} cœurs` : null,
+    cpu.performanceCores != null ? `${cpu.performanceCores} P` : null,
+    cpu.efficiencyCores != null ? `${cpu.efficiencyCores} E` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Processeur</CardTitle>
+      </CardHeader>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[13px]">
+        <InfoRow label="Modèle" value={cpu.brand} />
+        <InfoRow label="Fabricant" value={cpu.vendor} />
+        <InfoRow label="Topologie" value={topology || null} />
+        <InfoRow
+          label="Fréquence"
+          value={cpu.frequencyMhz != null ? `${cpu.frequencyMhz} MHz` : null}
+        />
+      </dl>
+    </Card>
+  );
+}
+
+function MemoryDetails({ memory }: { memory: MemoryInfo }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Mémoire</CardTitle>
+      </CardHeader>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[13px]">
+        <InfoRow
+          label="Capacité"
+          value={memory.totalBytes != null ? formatBytes(memory.totalBytes) : null}
+        />
+        <InfoRow label="Type" value={memory.typeName} />
+        <InfoRow label="Fabricant" value={memory.manufacturer} />
+      </dl>
+      {memory.modules.length > 0 ? (
+        <div className="mt-3 space-y-2 border-t border-[var(--color-border)] pt-3">
+          {memory.modules.map((mod, i) => (
+            <dl
+              key={`${mod.slot ?? "dimm"}-${i}`}
+              className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px]"
+            >
+              <InfoRow label="Slot" value={mod.slot ?? `Module ${i + 1}`} />
+              <InfoRow
+                label="Taille"
+                value={mod.sizeBytes != null ? formatBytes(mod.sizeBytes) : null}
+              />
+              <InfoRow label="Type" value={mod.typeName} />
+              <InfoRow
+                label="Vitesse"
+                value={mod.speedMhz != null ? `${mod.speedMhz} MHz` : null}
+              />
+              <InfoRow label="Fabricant" value={mod.manufacturer} />
+              <InfoRow label="Réf." value={mod.partNumber} />
+              <InfoRow label="Série" value={mod.serial} />
+            </dl>
+          ))}
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+function GpuDetails({ gpu, index }: { gpu: GpuInfo; index: number }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{index === 0 ? "GPU" : `GPU ${index + 1}`}</CardTitle>
+      </CardHeader>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[13px]">
+        <InfoRow label="Modèle" value={gpu.chipset ?? gpu.name} />
+        <InfoRow label="Fabricant" value={gpu.vendor} />
+        <InfoRow label="Cœurs" value={gpu.cores != null ? String(gpu.cores) : null} />
+        <InfoRow
+          label="VRAM"
+          value={gpu.vramBytes != null ? formatBytes(gpu.vramBytes) : null}
+        />
+        <InfoRow label="Bus" value={gpu.bus} />
+        <InfoRow label="Metal" value={gpu.metalSupport} />
+      </dl>
+    </Card>
+  );
+}
+
+function StorageDetails({ disk }: { disk: StorageInfo }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Stockage</CardTitle>
+      </CardHeader>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[13px]">
+        <InfoRow label="Volume" value={disk.name} />
+        <InfoRow label="Modèle" value={disk.model} />
+        <InfoRow label="Type" value={disk.mediumType} />
+        <InfoRow label="Protocole" value={disk.protocol} />
+        <InfoRow
+          label="Capacité"
+          value={disk.sizeBytes != null ? formatBytes(disk.sizeBytes) : null}
+        />
+        <InfoRow label="BSD" value={disk.bsdName} />
+        <InfoRow label="Point de montage" value={disk.mountPoint} />
+        <InfoRow label="SMART" value={disk.smartStatus} />
+        <InfoRow label="Série" value={disk.serial} />
+      </dl>
+    </Card>
+  );
+}
+
+function DisplayDetails({ display }: { display: DisplayInfo }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Écran{display.main ? " · principal" : ""}</CardTitle>
+      </CardHeader>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[13px]">
+        <InfoRow label="Nom" value={display.name} />
+        <InfoRow label="Type" value={display.displayType} />
+        <InfoRow label="Résolution" value={display.resolution} />
+        <InfoRow label="Pixels" value={display.pixelResolution} />
+        <InfoRow label="Connexion" value={display.connection} />
+        <InfoRow
+          label="Réf. produit"
+          value={
+            display.vendorId || display.productId
+              ? `vendor ${display.vendorId ?? "—"} · product ${display.productId ?? "—"}`
+              : null
+          }
+        />
+        <InfoRow label="Série" value={display.serial} />
+      </dl>
+    </Card>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
+  if (value == null || value === "") return null;
+  return (
+    <>
+      <dt className="text-[var(--color-muted)]">{label}</dt>
+      <dd className="min-w-0 break-all text-right">{value}</dd>
+    </>
   );
 }
 

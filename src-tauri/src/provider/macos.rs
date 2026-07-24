@@ -64,8 +64,7 @@ impl SystemProvider for MacOSProvider {
         let mem_m = self.memory()?;
         let bat = self.battery().unwrap_or(None);
         let model = {
-            let mut sys = self.sys.lock();
-            info::collect(&mut sys)
+            self.system()
                 .map(|i| i.model)
                 .unwrap_or_else(|_| "Unknown".into())
         };
@@ -89,7 +88,12 @@ impl SystemProvider for MacOSProvider {
     }
 
     fn system(&self) -> Result<SystemInfo, MetricError> {
-        let mut sys = self.sys.lock();
-        info::collect(&mut sys)
+        let sys = &self.sys;
+        self.state
+            .system_info
+            .get_or_collect(|| {
+                let mut sys = sys.lock();
+                info::collect(&mut sys)
+            })
     }
 }

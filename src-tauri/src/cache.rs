@@ -6,6 +6,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use parking_lot::Mutex;
 
 use crate::models::{EnergyMetrics, EnergySample};
+use crate::system::info::SystemInfoCache;
 
 /// Maximum energy samples retained (~5 minutes at 1 Hz).
 pub const ENERGY_HISTORY_CAPACITY: usize = 300;
@@ -76,6 +77,8 @@ impl<T: Clone> TtlCache<T> {
 pub struct ProviderState {
     pub energy_history: Mutex<EnergyHistory>,
     pub last_energy: Mutex<Option<EnergyMetrics>>,
+    /// Cached OS / hardware inventory (expensive on macOS).
+    pub system_info: SystemInfoCache,
 }
 
 impl ProviderState {
@@ -83,6 +86,7 @@ impl ProviderState {
         Self {
             energy_history: Mutex::new(EnergyHistory::new()),
             last_energy: Mutex::new(None),
+            system_info: SystemInfoCache::new(),
         }
     }
 }
