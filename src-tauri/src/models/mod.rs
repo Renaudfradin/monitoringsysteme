@@ -1,6 +1,6 @@
 //! Shared serializable metric models returned by Tauri commands.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// CPU utilisation snapshot.
 #[derive(Debug, Clone, Serialize)]
@@ -54,7 +54,7 @@ pub struct BatteryMetrics {
 }
 
 /// Single energy history sample.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EnergySample {
     /// Unix timestamp (seconds).
@@ -73,6 +73,8 @@ pub struct EnergyMetrics {
     pub percent: f32,
     /// Circular history for the last ~5 minutes (1 Hz).
     pub history: Vec<EnergySample>,
+    /// Downsampled persistent history (~1 sample / min, 24 h).
+    pub history_24h: Vec<EnergySample>,
     /// Whether the value is estimated vs measured.
     pub estimated: bool,
 }
@@ -87,6 +89,97 @@ pub struct TemperatureMetrics {
     /// Fan speeds in RPM when available.
     pub fans_rpm: Vec<f32>,
     pub available: bool,
+}
+
+/// Single process entry for top lists.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessEntry {
+    pub pid: u32,
+    pub name: String,
+    pub cpu_percent: f32,
+    pub memory_bytes: u64,
+}
+
+/// Top processes by CPU and memory.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessMetrics {
+    pub top_cpu: Vec<ProcessEntry>,
+    pub top_memory: Vec<ProcessEntry>,
+}
+
+/// Per-interface network rates.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkInterface {
+    pub name: String,
+    pub rx_bytes_per_sec: f64,
+    pub tx_bytes_per_sec: f64,
+    pub rx_total_bytes: u64,
+    pub tx_total_bytes: u64,
+}
+
+/// Aggregate network throughput.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkMetrics {
+    pub interfaces: Vec<NetworkInterface>,
+    pub total_rx_bytes_per_sec: f64,
+    pub total_tx_bytes_per_sec: f64,
+}
+
+/// Named fan reading.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FanInfo {
+    pub name: String,
+    pub rpm: f32,
+}
+
+/// Live GPU + fans (best effort).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GpuLiveMetrics {
+    pub name: String,
+    pub utilization_percent: Option<f32>,
+    pub temperature_celsius: Option<f32>,
+    pub fans: Vec<FanInfo>,
+    pub available: bool,
+}
+
+/// User preferences persisted on disk.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettings {
+    /// "system" | "light" | "dark"
+    pub theme: String,
+    pub notifications_enabled: bool,
+    pub cpu_alert_threshold: f32,
+    pub ram_alert_threshold: f32,
+    pub launch_at_login: bool,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            theme: "system".into(),
+            notifications_enabled: true,
+            cpu_alert_threshold: 90.0,
+            ram_alert_threshold: 90.0,
+            launch_at_login: false,
+        }
+    }
+}
+
+/// Registered metric plugin descriptor.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginInfo {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub builtin: bool,
 }
 
 /// CPU / SoC identity and topology.

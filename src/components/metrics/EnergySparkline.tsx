@@ -2,11 +2,16 @@ import type { EnergySample } from "@/types/metrics";
 
 type EnergySparklineProps = {
   history: EnergySample[];
+  label?: string;
   className?: string;
 };
 
-/** Lightweight SVG sparkline for the last ~5 minutes of power samples. */
-export function EnergySparkline({ history, className }: EnergySparklineProps) {
+/** Lightweight SVG sparkline for energy samples (5 min or 24 h). */
+export function EnergySparkline({
+  history,
+  label = "Historique de consommation",
+  className,
+}: EnergySparklineProps) {
   if (history.length < 2) {
     return (
       <div
@@ -33,21 +38,44 @@ export function EnergySparkline({ history, className }: EnergySparklineProps) {
     })
     .join(" ");
 
+  const last = watts[watts.length - 1];
+  const firstTs = history[0]?.ts;
+  const lastTs = history[history.length - 1]?.ts;
+
   return (
-    <svg
-      viewBox={`0 0 ${w} ${h}`}
-      className={`mt-3 h-14 w-full ${className ?? ""}`}
-      role="img"
-      aria-label="Historique de consommation sur 5 minutes"
-    >
-      <polyline
-        fill="none"
-        stroke="var(--color-accent)"
-        strokeWidth="2"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        points={points}
-      />
-    </svg>
+    <div className={className}>
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        className="mt-3 h-14 w-full"
+        role="img"
+        aria-label={label}
+      >
+        <polyline
+          fill="none"
+          stroke="var(--color-accent)"
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          points={points}
+        />
+      </svg>
+      <div className="mt-1 flex justify-between text-[11px] text-[var(--color-muted)] tabular-nums">
+        <span>
+          {min.toFixed(1)}–{max.toFixed(1)} W
+          {firstTs && lastTs
+            ? ` · ${formatRange(firstTs, lastTs)}`
+            : ""}
+        </span>
+        <span>{last.toFixed(1)} W</span>
+      </div>
+    </div>
   );
+}
+
+function formatRange(from: number, to: number): string {
+  const spanH = (to - from) / 3600;
+  if (spanH >= 2) return `${spanH.toFixed(0)} h`;
+  const spanM = (to - from) / 60;
+  if (spanM >= 2) return `${spanM.toFixed(0)} min`;
+  return `${Math.max(1, to - from)} s`;
 }

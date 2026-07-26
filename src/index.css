@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 @theme {
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
     system-ui, sans-serif;
@@ -12,6 +14,18 @@
   --color-metric-good: #34c759;
   --color-metric-warn: #ff9f0a;
   --color-metric-crit: #ff3b30;
+}
+
+html[data-theme="dark"] {
+  --color-surface: #1c1c1e;
+  --color-card: #2c2c2e;
+  --color-border: #3a3a3c;
+  --color-muted: #98989d;
+  --color-foreground: #f5f5f7;
+  --color-accent: #0a84ff;
+  --color-metric-good: #30d158;
+  --color-metric-warn: #ff9f0a;
+  --color-metric-crit: #ff453a;
 }
 
 @layer base {
@@ -32,5 +46,10 @@
     color: var(--color-foreground);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  html[data-theme="dark"] body {
+    background: linear-gradient(180deg, #000000 0%, var(--color-surface) 100%);
   }
 }

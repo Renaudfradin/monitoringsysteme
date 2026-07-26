@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  checkResourceAlerts,
   getBattery,
   getCpu,
   getDisk,
   getEnergy,
+  getGpu,
   getMemory,
+  getNetwork,
+  getProcesses,
   getSystem,
   getTemperature,
 } from "@/services/tauri";
@@ -19,6 +23,9 @@ const empty: AllMetrics = {
   energy: null,
   battery: null,
   temperature: null,
+  processes: null,
+  network: null,
+  gpu: null,
   system: null,
 };
 
@@ -31,22 +38,36 @@ export function useMetrics() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const inFlight = useRef(false);
+  const alertTick = useRef(0);
 
   const refresh = useCallback(async () => {
     if (document.visibilityState === "hidden") return;
     if (inFlight.current) return;
     inFlight.current = true;
     try {
-      const [cpu, memory, disk, energy, battery, temperature, system] =
-        await Promise.all([
-          getCpu().catch(() => null),
-          getMemory().catch(() => null),
-          getDisk().catch(() => null),
-          getEnergy().catch(() => null),
-          getBattery().catch(() => null),
-          getTemperature().catch(() => null),
-          getSystem().catch(() => null),
-        ]);
+      const [
+        cpu,
+        memory,
+        disk,
+        energy,
+        battery,
+        temperature,
+        processes,
+        network,
+        gpu,
+        system,
+      ] = await Promise.all([
+        getCpu().catch(() => null),
+        getMemory().catch(() => null),
+        getDisk().catch(() => null),
+        getEnergy().catch(() => null),
+        getBattery().catch(() => null),
+        getTemperature().catch(() => null),
+        getProcesses().catch(() => null),
+        getNetwork().catch(() => null),
+        getGpu().catch(() => null),
+        getSystem().catch(() => null),
+      ]);
 
       setMetrics({
         cpu,
@@ -55,9 +76,18 @@ export function useMetrics() {
         energy,
         battery,
         temperature,
+        processes,
+        network,
+        gpu,
         system,
       });
       setError(null);
+
+      // Check alerts every ~15 s to avoid spam while keeping responsiveness.
+      alertTick.current += 1;
+      if (alertTick.current % 15 === 0) {
+        void checkResourceAlerts().catch(() => undefined);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

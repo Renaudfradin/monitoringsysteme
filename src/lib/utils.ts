@@ -51,3 +51,9 @@ export function formatUptime(secs: number): string {
   if (h > 0) return `${h} h ${m} min`;
   return `${m} min`;
 }
+
+export function formatRate(bytesPerSec: number): string {
+  if (!Number.isFinite(bytesPerSec) || bytesPerSec < 0) return "—";
+  if (bytesPerSec < 1024) return `${bytesPerSec.toFixed(0)} B/s`;
+  return `${formatBytes(bytesPerSec)}/s`;
+}
