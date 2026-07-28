@@ -79,6 +79,14 @@ pub struct EnergyMetrics {
     pub estimated: bool,
 }
 
+/// Single thermal sensor reading.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TempSensor {
+    pub label: String,
+    pub celsius: f32,
+}
+
 /// Optional thermal / fan readings.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -86,8 +94,13 @@ pub struct TemperatureMetrics {
     pub cpu_celsius: Option<f32>,
     pub gpu_celsius: Option<f32>,
     pub ssd_celsius: Option<f32>,
+    pub battery_celsius: Option<f32>,
+    /// Hottest valid sensor reading when available.
+    pub max_celsius: Option<f32>,
     /// Fan speeds in RPM when available.
     pub fans_rpm: Vec<f32>,
+    /// Raw sensors (filtered), hottest first.
+    pub sensors: Vec<TempSensor>,
     pub available: bool,
 }
 
@@ -148,6 +161,65 @@ pub struct GpuLiveMetrics {
     pub available: bool,
 }
 
+/// Which dashboard sections the user wants shown.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct VisibleSections {
+    pub cpu: bool,
+    pub memory: bool,
+    pub disk: bool,
+    pub energy: bool,
+    pub battery: bool,
+    pub temperature: bool,
+    pub gpu: bool,
+    pub network: bool,
+    pub processes: bool,
+    pub export: bool,
+    pub plugins: bool,
+    pub system: bool,
+}
+
+impl Default for VisibleSections {
+    fn default() -> Self {
+        Self {
+            cpu: true,
+            memory: true,
+            disk: true,
+            energy: true,
+            battery: true,
+            temperature: true,
+            gpu: true,
+            network: true,
+            processes: true,
+            export: true,
+            plugins: true,
+            system: true,
+        }
+    }
+}
+
+/// Which metrics appear next to the macOS menu-bar tray icon.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TrayDisplay {
+    /// When false, only the icon is shown (no title text).
+    pub enabled: bool,
+    pub cpu: bool,
+    pub memory: bool,
+    pub energy: bool,
+}
+
+impl Default for TrayDisplay {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            cpu: true,
+            memory: true,
+            energy: true,
+        }
+    }
+}
+
 /// User preferences persisted on disk.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -158,6 +230,10 @@ pub struct AppSettings {
     pub cpu_alert_threshold: f32,
     pub ram_alert_threshold: f32,
     pub launch_at_login: bool,
+    #[serde(default)]
+    pub visible_sections: VisibleSections,
+    #[serde(default)]
+    pub tray_display: TrayDisplay,
 }
 
 impl Default for AppSettings {
@@ -168,6 +244,8 @@ impl Default for AppSettings {
             cpu_alert_threshold: 90.0,
             ram_alert_threshold: 90.0,
             launch_at_login: false,
+            visible_sections: VisibleSections::default(),
+            tray_display: TrayDisplay::default(),
         }
     }
 }

@@ -1,7 +1,29 @@
 import { useCallback, useEffect, useState } from "react";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { getSettings, setSettings as saveSettings } from "@/services/tauri";
-import type { AppSettings } from "@/types/metrics";
+import type { AppSettings, TrayDisplay, VisibleSections } from "@/types/metrics";
+
+export const defaultVisibleSections: VisibleSections = {
+  cpu: true,
+  memory: true,
+  disk: true,
+  energy: true,
+  battery: true,
+  temperature: true,
+  gpu: true,
+  network: true,
+  processes: true,
+  export: true,
+  plugins: true,
+  system: true,
+};
+
+export const defaultTrayDisplay: TrayDisplay = {
+  enabled: true,
+  cpu: true,
+  memory: true,
+  energy: true,
+};
 
 const defaults: AppSettings = {
   theme: "system",
@@ -9,6 +31,8 @@ const defaults: AppSettings = {
   cpuAlertThreshold: 90,
   ramAlertThreshold: 90,
   launchAtLogin: false,
+  visibleSections: defaultVisibleSections,
+  trayDisplay: defaultTrayDisplay,
 };
 
 function applyTheme(theme: string) {
@@ -27,13 +51,25 @@ export function useSettings() {
     (async () => {
       try {
         const s = await getSettings();
+        const normalized: AppSettings = {
+          ...defaults,
+          ...s,
+          visibleSections: {
+            ...defaultVisibleSections,
+            ...(s.visibleSections ?? {}),
+          },
+          trayDisplay: {
+            ...defaultTrayDisplay,
+            ...(s.trayDisplay ?? {}),
+          },
+        };
         if (!cancelled) {
-          setSettingsState(s);
-          applyTheme(s.theme);
+          setSettingsState(normalized);
+          applyTheme(normalized.theme);
         }
         const auto = await isEnabled().catch(() => false);
-        if (!cancelled && auto !== s.launchAtLogin) {
-          const next = { ...s, launchAtLogin: auto };
+        if (!cancelled && auto !== normalized.launchAtLogin) {
+          const next = { ...normalized, launchAtLogin: auto };
           setSettingsState(next);
         }
       } catch {
@@ -58,11 +94,31 @@ export function useSettings() {
 
   const update = useCallback(async (patch: Partial<AppSettings>) => {
     setSettingsState((prev) => {
-      const next = { ...prev, ...patch };
+      const next: AppSettings = {
+        ...prev,
+        ...patch,
+        visibleSections: patch.visibleSections
+          ? { ...prev.visibleSections, ...patch.visibleSections }
+          : prev.visibleSections,
+        trayDisplay: patch.trayDisplay
+          ? { ...prev.trayDisplay, ...patch.trayDisplay }
+          : prev.trayDisplay,
+      };
       void (async () => {
         try {
           const saved = await saveSettings(next);
-          setSettingsState(saved);
+          setSettingsState({
+            ...defaults,
+            ...saved,
+            visibleSections: {
+              ...defaultVisibleSections,
+              ...(saved.visibleSections ?? {}),
+            },
+            trayDisplay: {
+              ...defaultTrayDisplay,
+              ...(saved.trayDisplay ?? {}),
+            },
+          });
           if (patch.launchAtLogin != null) {
             if (patch.launchAtLogin) await enable();
             else await disable();

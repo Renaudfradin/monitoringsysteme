@@ -10,6 +10,7 @@ type MetricCardProps = {
   footer?: ReactNode;
   className?: string;
   children?: ReactNode;
+  invertTone?: boolean;
 };
 
 export function MetricCard({
@@ -19,6 +20,7 @@ export function MetricCard({
   footer,
   className,
   children,
+  invertTone = false,
 }: MetricCardProps) {
   const display = Math.round(Math.max(0, Math.min(100, percent)));
   return (
@@ -32,7 +34,7 @@ export function MetricCard({
           <span className="ml-1 text-sm text-[var(--color-muted)]">%</span>
         </div>
       </CardHeader>
-      <MetricProgress value={percent} />
+      <MetricProgress value={percent} invertTone={invertTone} />
       {detail ? (
         <p className="mt-2 text-[13px] text-[var(--color-muted)]">{detail}</p>
       ) : null}

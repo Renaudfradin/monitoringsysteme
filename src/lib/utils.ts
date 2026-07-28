@@ -12,8 +12,19 @@ export function metricTone(percent: number): "good" | "warn" | "crit" {
   return "crit";
 }
 
-export function metricColorClass(percent: number): string {
-  switch (metricTone(percent)) {
+/** Battery color: green > 60, orange 20–60, red ≤ 20. */
+export function batteryTone(percent: number): "good" | "warn" | "crit" {
+  if (percent > 60) return "good";
+  if (percent > 20) return "warn";
+  return "crit";
+}
+
+export function metricColorClass(
+  percent: number,
+  invertTone = false,
+): string {
+  const tone = invertTone ? batteryTone(percent) : metricTone(percent);
+  switch (tone) {
     case "good":
       return "bg-[var(--color-metric-good)]";
     case "warn":

@@ -68,6 +68,7 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 }
 
 pub fn update_tray_title(app: &AppHandle, state: &AppState) {
+    let tray_cfg = state.settings.get().tray_display;
     let cpu = (*state.provider_state.last_cpu.lock()).unwrap_or(0.0);
     let ram = (*state.provider_state.last_ram.lock()).unwrap_or(0.0);
     let watts = state
@@ -78,8 +79,34 @@ pub fn update_tray_title(app: &AppHandle, state: &AppState) {
         .map(|e| e.watts)
         .unwrap_or(0.0);
 
-    let title = format!("{:.0}% · {:.0}% · {:.0}W", cpu, ram, watts);
-    let tip = format!("CPU {cpu:.0}% · RAM {ram:.0}% · {watts:.1} W");
+    let mut parts: Vec<String> = Vec::new();
+    let mut tip_parts: Vec<String> = Vec::new();
+    if tray_cfg.enabled {
+        if tray_cfg.cpu {
+            parts.push(format!("{:.0}%", cpu));
+            tip_parts.push(format!("CPU {cpu:.0}%"));
+        }
+        if tray_cfg.memory {
+            parts.push(format!("{:.0}%", ram));
+            tip_parts.push(format!("RAM {ram:.0}%"));
+        }
+        if tray_cfg.energy {
+            parts.push(format!("{:.0}W", watts));
+            tip_parts.push(format!("{watts:.1} W"));
+        }
+    }
+
+    let title = if parts.is_empty() {
+        String::new()
+    } else {
+        parts.join(" · ")
+    };
+    let tip = if tip_parts.is_empty() {
+        "Monitoring Systeme".into()
+    } else {
+        tip_parts.join(" · ")
+    };
+
     if let Some(tray) = app.tray_by_id("main") {
         let _ = tray.set_title(Some(title.as_str()));
         let _ = tray.set_tooltip(Some(tip.as_str()));

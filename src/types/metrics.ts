@@ -43,11 +43,19 @@ export interface EnergyMetrics {
   estimated: boolean;
 }
 
+export interface TempSensor {
+  label: string;
+  celsius: number;
+}
+
 export interface TemperatureMetrics {
   cpuCelsius: number | null;
   gpuCelsius: number | null;
   ssdCelsius: number | null;
+  batteryCelsius: number | null;
+  maxCelsius: number | null;
   fansRpm: number[];
+  sensors: TempSensor[];
   available: boolean;
 }
 
@@ -90,12 +98,40 @@ export interface GpuLiveMetrics {
   available: boolean;
 }
 
+export type SectionId =
+  | "cpu"
+  | "memory"
+  | "disk"
+  | "energy"
+  | "battery"
+  | "temperature"
+  | "gpu"
+  | "network"
+  | "processes"
+  | "export"
+  | "plugins"
+  | "system";
+
+export type VisibleSections = Record<SectionId, boolean>;
+
+export type TrayMetricId = "cpu" | "memory" | "energy";
+
+export interface TrayDisplay {
+  /** Affiche le texte à côté de l'icône dans la barre de menu. */
+  enabled: boolean;
+  cpu: boolean;
+  memory: boolean;
+  energy: boolean;
+}
+
 export interface AppSettings {
   theme: "system" | "light" | "dark" | string;
   notificationsEnabled: boolean;
   cpuAlertThreshold: number;
   ramAlertThreshold: number;
   launchAtLogin: boolean;
+  visibleSections: VisibleSections;
+  trayDisplay: TrayDisplay;
 }
 
 export interface PluginInfo {

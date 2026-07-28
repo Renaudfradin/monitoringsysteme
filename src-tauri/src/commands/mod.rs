@@ -206,10 +206,13 @@ pub fn get_settings(state: State<'_, Arc<AppState>>) -> Result<AppSettings, Metr
 
 #[tauri::command]
 pub fn set_settings(
+    app: AppHandle,
     state: State<'_, Arc<AppState>>,
     settings: AppSettings,
 ) -> Result<AppSettings, MetricError> {
-    state.settings.set(settings)
+    let saved = state.settings.set(settings)?;
+    crate::tray::update_tray_title(&app, state.inner());
+    Ok(saved)
 }
 
 #[tauri::command]
