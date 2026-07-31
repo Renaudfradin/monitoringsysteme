@@ -1,4 +1,7 @@
-//! macOS menu-bar tray widget with live CPU / RAM / watts.
+//! System tray widget with live CPU / RAM / watts.
+//!
+//! On macOS the title appears next to the menu-bar icon; on Windows / Linux
+//! metrics are shown in the tray tooltip only.
 
 use std::sync::Arc;
 
@@ -21,11 +24,10 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         return Ok(());
     };
 
-    let _tray = TrayIconBuilder::with_id("main")
+    let builder = TrayIconBuilder::with_id("main")
         .icon(icon)
         .menu(&menu)
         .tooltip("Monitoring Systeme")
-        .title("…")
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => {
@@ -61,8 +63,13 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
                     }
                 }
             }
-        })
-        .build(app)?;
+        });
+
+    // Menu-bar text next to the icon is a macOS feature.
+    #[cfg(target_os = "macos")]
+    let builder = builder.title("…");
+
+    let _tray = builder.build(app)?;
 
     Ok(())
 }
@@ -74,7 +81,7 @@ pub fn update_tray_title(app: &AppHandle, state: &AppState) {
         let _ = tray.set_visible(tray_cfg.enabled);
     }
 
-    // Without a menu-bar icon, keep the main window available so the user
+    // Without a tray icon, keep the main window available so the user
     // is not stranded with neither tray nor UI.
     if !tray_cfg.enabled {
         if let Some(w) = app.get_webview_window("main") {
@@ -116,11 +123,26 @@ pub fn update_tray_title(app: &AppHandle, state: &AppState) {
     let tip = if tip_parts.is_empty() {
         "Monitoring Systeme".into()
     } else {
-        tip_parts.join(" · ")
+        // On Windows the tooltip is the only live readout next to the icon.
+        #[cfg(target_os = "windows")]
+        {
+            format!("Monitoring Systeme — {}", tip_parts.join(" · "))
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            tip_parts.join(" · ")
+        }
     };
 
     if let Some(tray) = app.tray_by_id("main") {
-        let _ = tray.set_title(Some(title.as_str()));
+        #[cfg(target_os = "macos")]
+        {
+            let _ = tray.set_title(Some(title.as_str()));
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = title; // title text is macOS-only
+        }
         let _ = tray.set_tooltip(Some(tip.as_str()));
     }
 }

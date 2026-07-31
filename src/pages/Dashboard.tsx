@@ -581,13 +581,13 @@ function SectionsPanel({
       </CardHeader>
 
       <p className="mb-2 text-[11px] font-semibold tracking-wide text-[var(--color-muted)] uppercase">
-        Barre de menu
+        Barre système
       </p>
       <p className="mb-2 text-[12px] text-[var(--color-muted)]">
-        Icône macOS et texte optionnel à côté (ex. 38% · 75% · 32W).
+        Icône tray et métriques (texte à côté sur macOS, tooltip sur Windows — ex. 38% · 75% · 32W).
       </p>
       <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-[13px] hover:bg-black/5 dark:hover:bg-white/10">
-        <span>Afficher dans la barre de menu</span>
+        <span>Afficher dans la barre système</span>
         <input
           type="checkbox"
           checked={tray.enabled}
@@ -620,7 +620,7 @@ function SectionsPanel({
       </ul>
       <p className="mt-2 rounded-lg bg-black/5 px-3 py-2 text-center text-[13px] tabular-nums dark:bg-white/10">
         {!tray.enabled
-          ? "Masqué de la barre de menu"
+          ? "Masqué de la barre système"
           : (trayPreview ?? "Icône seule")}
       </p>
 
@@ -683,8 +683,8 @@ function SettingsHint({ settings }: { settings: AppSettings }) {
     <p className="mb-4 text-center text-[11px] text-[var(--color-muted)]">
       Thème {settings.theme}
       {trayOn
-        ? " · fermer la fenêtre = barre de menu"
-        : " · barre de menu masquée · fermer = quitter"}
+        ? " · fermer la fenêtre = barre système"
+        : " · barre système masquée · fermer = quitter"}
     </p>
   );
 }
