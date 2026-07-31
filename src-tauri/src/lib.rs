@@ -74,7 +74,7 @@ pub fn run() {
                     .map(|s| s.settings.get().tray_display.enabled)
                     .unwrap_or(true);
                 if tray_enabled {
-                    // Keep running in the menu bar on close.
+                    // Keep running in the system tray on close.
                     api.prevent_close();
                     let _ = window.hide();
                 } else {

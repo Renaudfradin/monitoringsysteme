@@ -2,14 +2,14 @@
 
 use std::time::{Duration, Instant};
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use std::process::Command;
 
 #[cfg(target_os = "macos")]
 use std::collections::HashSet;
 
 use parking_lot::Mutex;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use serde_json::Value;
 use sysinfo::System;
 
@@ -17,6 +17,8 @@ use crate::error::MetricError;
 use crate::models::{CpuInfo, MemoryInfo, SystemInfo};
 #[cfg(target_os = "macos")]
 use crate::models::{DisplayInfo, GpuInfo, MemoryModule, StorageInfo};
+#[cfg(target_os = "windows")]
+use crate::models::{GpuInfo, MemoryModule, StorageInfo};
 
 /// How long to reuse a hardware inventory snapshot (system_profiler is slow).
 const INVENTORY_TTL: Duration = Duration::from_secs(120);
@@ -69,7 +71,12 @@ pub fn collect(sys: &mut System) -> Result<SystemInfo, MetricError> {
         collect_macos(sys)
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        collect_windows(sys)
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         collect_fallback(sys)
     }
@@ -513,8 +520,356 @@ fn read_hw_model() -> Option<String> {
             _ => name,
         });
     }
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    #[cfg(target_os = "windows")]
+    {
+        return read_windows_hw_model();
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     {
         None
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn collect_windows(sys: &mut System) -> Result<SystemInfo, MetricError> {
+    let mut info = collect_fallback(sys)?;
+
+    if let Some(inv) = read_windows_inventory() {
+        apply_windows_inventory(&mut info, &inv);
+    }
+
+    if let Some(hw) = read_hw_model() {
+        info.model = hw;
+    }
+
+    Ok(info)
+}
+
+#[cfg(target_os = "windows")]
+fn read_windows_hw_model() -> Option<String> {
+    let script = r#"
+$cs = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+if ($null -eq $cs) { exit 1 }
+$mfr = ($cs.Manufacturer -as [string]).Trim()
+$model = ($cs.Model -as [string]).Trim()
+if ([string]::IsNullOrWhiteSpace($model)) { exit 1 }
+if (-not [string]::IsNullOrWhiteSpace($mfr) -and $model -notlike "$mfr*") {
+  Write-Output "$mfr $model"
+} else {
+  Write-Output $model
+}
+"#;
+    run_powershell(script)
+}
+
+#[cfg(target_os = "windows")]
+fn read_windows_inventory() -> Option<Value> {
+    let script = r#"
+$ErrorActionPreference = 'SilentlyContinue'
+$cs = Get-CimInstance Win32_ComputerSystem
+$bios = Get-CimInstance Win32_BIOS
+$os = Get-CimInstance Win32_OperatingSystem
+$cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
+$csp = Get-CimInstance Win32_ComputerSystemProduct
+$cv = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+$gpus = @(Get-CimInstance Win32_VideoController | ForEach-Object {
+  [pscustomobject]@{
+    name = $_.Name
+    adapterRam = $_.AdapterRAM
+    driverVersion = $_.DriverVersion
+  }
+})
+$mem = @(Get-CimInstance Win32_PhysicalMemory | ForEach-Object {
+  [pscustomobject]@{
+    capacity = $_.Capacity
+    speed = $_.Speed
+    manufacturer = $_.Manufacturer
+    partNumber = $_.PartNumber
+    serial = $_.SerialNumber
+    bank = $_.BankLabel
+    deviceLocator = $_.DeviceLocator
+    memoryType = $_.SMBIOSMemoryType
+  }
+})
+$disks = @(Get-CimInstance Win32_DiskDrive | ForEach-Object {
+  [pscustomobject]@{
+    name = $_.Caption
+    model = $_.Model
+    size = $_.Size
+    serial = $_.SerialNumber
+    interfaceType = $_.InterfaceType
+    mediaType = $_.MediaType
+  }
+})
+[pscustomobject]@{
+  manufacturer = $cs.Manufacturer
+  model = $cs.Model
+  totalPhysicalMemory = $cs.TotalPhysicalMemory
+  serial = $bios.SerialNumber
+  biosVersion = $bios.SMBIOSBIOSVersion
+  uuid = $csp.UUID
+  osCaption = $os.Caption
+  osVersion = $os.Version
+  osBuild = $cv.CurrentBuild
+  displayVersion = $cv.DisplayVersion
+  productName = $cv.ProductName
+  cpuName = $cpu.Name
+  cpuCores = $cpu.NumberOfCores
+  cpuLogical = $cpu.NumberOfLogicalProcessors
+  cpuMaxClock = $cpu.MaxClockSpeed
+  cpuManufacturer = $cpu.Manufacturer
+  gpus = $gpus
+  memory = $mem
+  disks = $disks
+} | ConvertTo-Json -Depth 5 -Compress
+"#;
+    let raw = run_powershell(script)?;
+    serde_json::from_str(&raw).ok()
+}
+
+#[cfg(target_os = "windows")]
+fn apply_windows_inventory(info: &mut SystemInfo, root: &Value) {
+    if let Some(s) = json_str_any(root, "osCaption").or_else(|| json_str_any(root, "productName")) {
+        info.os_name = s;
+    }
+    if let Some(s) = json_str_any(root, "displayVersion").or_else(|| json_str_any(root, "osVersion"))
+    {
+        info.os_version = s;
+    }
+    info.os_build = json_str_any(root, "osBuild");
+    info.os_long_name = match (
+        info.os_name.as_str(),
+        info.os_version.as_str(),
+        info.os_build.as_deref(),
+    ) {
+        (name, ver, Some(build)) if !name.is_empty() => Some(format!("{name} {ver} (build {build})")),
+        (name, ver, None) if !name.is_empty() => Some(format!("{name} {ver}")),
+        _ => info.os_long_name.clone(),
+    };
+
+    let manufacturer = json_str_any(root, "manufacturer");
+    let model = json_str_any(root, "model");
+    info.model = match (manufacturer.as_ref(), model.as_ref()) {
+        (Some(mfr), Some(m)) if !m.to_lowercase().starts_with(&mfr.to_lowercase()) => {
+            format!("{mfr} {m}")
+        }
+        (_, Some(m)) => m.clone(),
+        (Some(mfr), None) => mfr.clone(),
+        _ => info.model.clone(),
+    };
+    info.model_name = model;
+    info.serial_number = json_str_any(root, "serial").filter(|s| {
+        let l = s.to_lowercase();
+        !l.is_empty() && l != "to be filled by o.e.m." && l != "default string"
+    });
+    info.hardware_uuid = json_str_any(root, "uuid");
+    info.firmware_version = json_str_any(root, "biosVersion");
+
+    if let Some(brand) = json_str_any(root, "cpuName") {
+        let vendor = json_str_any(root, "cpuManufacturer").or_else(|| {
+            let b = brand.to_lowercase();
+            if b.contains("intel") {
+                Some("Intel".into())
+            } else if b.contains("amd") {
+                Some("AMD".into())
+            } else {
+                None
+            }
+        });
+        let cores = root
+            .get("cpuCores")
+            .and_then(|v| v.as_u64())
+            .map(|n| n as u32)
+            .or_else(|| info.cpu.as_ref().and_then(|c| c.cores));
+        let frequency_mhz = root
+            .get("cpuMaxClock")
+            .and_then(|v| v.as_u64())
+            .filter(|&f| f > 0)
+            .or_else(|| info.cpu.as_ref().and_then(|c| c.frequency_mhz));
+        info.cpu = Some(CpuInfo {
+            brand,
+            vendor,
+            cores,
+            performance_cores: None,
+            efficiency_cores: None,
+            frequency_mhz,
+        });
+    }
+
+    if let Some(arr) = root.get("gpus").and_then(|v| v.as_array()) {
+        let mut gpus = Vec::new();
+        for gpu in arr {
+            let name = json_str_any(gpu, "name").unwrap_or_else(|| "GPU".into());
+            if name.to_lowercase().contains("microsoft basic") {
+                continue;
+            }
+            let vendor = {
+                let l = name.to_lowercase();
+                if l.contains("nvidia") {
+                    Some("NVIDIA".into())
+                } else if l.contains("amd") || l.contains("radeon") {
+                    Some("AMD".into())
+                } else if l.contains("intel") {
+                    Some("Intel".into())
+                } else {
+                    None
+                }
+            };
+            let vram = gpu
+                .get("adapterRam")
+                .and_then(|v| v.as_u64().or_else(|| v.as_i64().map(|n| n as u64)))
+                .filter(|&b| b > 0 && b < u32::MAX as u64);
+            gpus.push(GpuInfo {
+                name: name.clone(),
+                chipset: Some(name),
+                vendor,
+                cores: None,
+                vram_bytes: vram,
+                metal_support: None,
+                bus: None,
+            });
+        }
+        if !gpus.is_empty() {
+            info.gpu = gpus;
+        }
+    }
+
+    if let Some(arr) = root.get("memory").and_then(|v| v.as_array()) {
+        let mut modules = Vec::new();
+        let mut type_name = None;
+        let mut manufacturer = None;
+        let mut total = root
+            .get("totalPhysicalMemory")
+            .and_then(|v| v.as_u64())
+            .or_else(|| info.memory.as_ref().and_then(|m| m.total_bytes));
+
+        for dimm in arr {
+            let size = dimm
+                .get("capacity")
+                .and_then(|v| v.as_u64())
+                .filter(|&b| b > 0);
+            let speed = dimm
+                .get("speed")
+                .and_then(|v| v.as_u64())
+                .map(|n| n as u32)
+                .filter(|&s| s > 0);
+            let mfr = json_str_any(dimm, "manufacturer");
+            let mem_type = dimm
+                .get("memoryType")
+                .and_then(|v| v.as_u64())
+                .and_then(smbios_memory_type);
+            if type_name.is_none() {
+                type_name = mem_type.clone();
+            }
+            if manufacturer.is_none() {
+                manufacturer = mfr.clone();
+            }
+            modules.push(MemoryModule {
+                size_bytes: size,
+                type_name: mem_type,
+                speed_mhz: speed,
+                manufacturer: mfr,
+                part_number: json_str_any(dimm, "partNumber"),
+                serial: json_str_any(dimm, "serial"),
+                slot: json_str_any(dimm, "deviceLocator")
+                    .or_else(|| json_str_any(dimm, "bank")),
+            });
+        }
+
+        if total.is_none() {
+            let sum: u64 = modules.iter().filter_map(|m| m.size_bytes).sum();
+            if sum > 0 {
+                total = Some(sum);
+            }
+        }
+
+        info.memory = Some(MemoryInfo {
+            total_bytes: total,
+            type_name,
+            manufacturer,
+            modules,
+        });
+    } else if let Some(total) = root.get("totalPhysicalMemory").and_then(|v| v.as_u64()) {
+        let memory = info.memory.get_or_insert_with(|| MemoryInfo {
+            total_bytes: None,
+            type_name: None,
+            manufacturer: None,
+            modules: Vec::new(),
+        });
+        memory.total_bytes = Some(total);
+    }
+
+    if let Some(arr) = root.get("disks").and_then(|v| v.as_array()) {
+        info.storage = arr
+            .iter()
+            .map(|d| StorageInfo {
+                name: json_str_any(d, "name")
+                    .or_else(|| json_str_any(d, "model"))
+                    .unwrap_or_else(|| "Disk".into()),
+                model: json_str_any(d, "model"),
+                medium_type: json_str_any(d, "mediaType"),
+                protocol: json_str_any(d, "interfaceType"),
+                size_bytes: d.get("size").and_then(|v| v.as_u64()).filter(|&b| b > 0),
+                serial: json_str_any(d, "serial"),
+                smart_status: None,
+                mount_point: None,
+                bsd_name: None,
+            })
+            .collect();
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn smbios_memory_type(code: u64) -> Option<String> {
+    Some(
+        match code {
+            20 => "DDR",
+            21 => "DDR2",
+            24 => "DDR3",
+            26 => "DDR4",
+            34 => "DDR5",
+            _ => return None,
+        }
+        .into(),
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn json_str_any(v: &Value, key: &str) -> Option<String> {
+    v.get(key).and_then(|x| match x {
+        Value::String(s) => {
+            let t = s.trim();
+            if t.is_empty() {
+                None
+            } else {
+                Some(t.to_string())
+            }
+        }
+        Value::Number(n) => Some(n.to_string()),
+        _ => None,
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn run_powershell(script: &str) -> Option<String> {
+    let output = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            script,
+        ])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
     }
 }

@@ -198,11 +198,11 @@ impl Default for VisibleSections {
     }
 }
 
-/// Which metrics appear next to the macOS menu-bar tray icon.
+/// Which metrics appear in the system tray (menu-bar title on macOS, tooltip elsewhere).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct TrayDisplay {
-    /// When false, the tray icon is hidden from the menu bar.
+    /// When false, the tray icon is hidden.
     pub enabled: bool,
     pub cpu: bool,
     pub memory: bool,
