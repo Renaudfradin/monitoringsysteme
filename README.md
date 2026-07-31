@@ -1,6 +1,6 @@
 # Monitoring Systeme
 
-Application de bureau légère pour surveiller CPU, RAM, disque, énergie, batterie et températures en temps réel
+Application de bureau légère pour surveiller CPU, RAM, disque, énergie, batterie, réseau, processus et températures en temps réel.
 
 **Stack :** Tauri v2 · React · TypeScript · Tailwind CSS · Rust
 
@@ -31,34 +31,32 @@ npm run tauri build
 src/                  Frontend React
   components/         UI réutilisable (MetricCard, Progress, sparkline)
   pages/              Dashboard
-  hooks/              useMetrics (poll 1 s)
+  hooks/              useMetrics (poll 1 s), useSettings
   services/           invoke Tauri typés
   types/              Miroirs TypeScript des modèles Rust
 
 src-tauri/            Backend Rust
-  commands/           get_cpu, get_memory, get_disk, get_energy, …
+  commands/           get_cpu, get_memory, export_metrics, …
   provider/           Trait SystemProvider + MacOS / Linux / Windows
   system/             Collecteurs indépendants par métrique
+  plugins.rs          Registre de plugins métriques (extension point)
   models/             Structs sérialisées JSON
-  cache.rs            Historique énergie circulaire (5 min @ 1 Hz)
+  cache.rs            Historique énergie 5 min + 24 h persistant
+  tray.rs             Widget barre de menu macOS
+  export.rs           Export CSV / JSON
+  settings.rs         Thème, alertes, démarrage session
 ```
 
-### Couche d’abstraction
+## Fonctionnalités
 
-```rust
-pub trait SystemProvider: Send + Sync {
-    fn cpu(&self) -> Result<CpuMetrics, MetricError>;
-    fn memory(&self) -> Result<MemoryMetrics, MetricError>;
-    fn disk(&self) -> Result<DiskMetrics, MetricError>;
-    fn battery(&self) -> Result<Option<BatteryMetrics>, MetricError>;
-    fn energy(&self) -> Result<EnergyMetrics, MetricError>;
-    fn temperature(&self) -> Result<TemperatureMetrics, MetricError>;
-    fn system(&self) -> Result<SystemInfo, MetricError>;
-}
-```
-
-- **V1** : `MacOSProvider` uniquement
-- `LinuxProvider` / `WindowsProvider` : stubs prêts à implémenter sans toucher aux commands ni au frontend
+- Métriques temps réel (CPU, RAM, disque, énergie, batterie, températures)
+- Graphique consommation **5 min** + **24 h** (historique JSON persistant)
+- Export **CSV / JSON**
+- Notifications OS si CPU / RAM &gt; seuil (défaut 90 %)
+- Top processus, débit réseau, GPU / ventilateurs (best effort)
+- Widget **barre de menu** macOS (CPU · RAM · watts)
+- Mode **sombre / clair / auto**, démarrage à la session
+- **Plugins** métriques internes (`list_plugins` / `invoke_plugin`)
 
 ## Énergie (macOS)
 
@@ -78,20 +76,11 @@ Points d’extension documentés dans [`src-tauri/src/system/energy.rs`](src-tau
 
 ## Objectifs perf
 
-- &lt; 1 % CPU au repos (poll 1 s, pause si fenêtre cachée)
+- &lt; 1 % CPU au repos (poll 1 s visible, sampler fond 15 s)
 - &lt; 100 Mo RAM
 - commands async via `spawn_blocking` (pas de boucle bloquante sur le runtime UI)
-- `System` sysinfo réutilisé + historique circulaire 300 points
+- `System` sysinfo réutilisé + historique circulaire 300 points + 1440 points / 24 h
 
-## Roadmap (bonus)
-
-- Graphique consommation 24 h + historique persistant
-- Export CSV / JSON
-- Notifications CPU / RAM &gt; 90 %
-- Top processus, réseau, GPU / ventilateurs détaillés
-- Widget barre de menu macOS
-- Mode sombre / clair, démarrage session
-- Système de plugins pour nouvelles métriques
 
 ## Licence
 

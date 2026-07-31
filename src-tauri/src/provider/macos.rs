@@ -5,16 +5,16 @@ use std::thread;
 use std::time::Duration;
 
 use parking_lot::Mutex;
-use sysinfo::{CpuRefreshKind, RefreshKind, System};
+use sysinfo::{CpuRefreshKind, MemoryRefreshKind, ProcessRefreshKind, RefreshKind, System};
 
 use super::SystemProvider;
 use crate::cache::ProviderState;
 use crate::error::MetricError;
 use crate::models::{
-    BatteryMetrics, CpuMetrics, DiskMetrics, EnergyMetrics, MemoryMetrics, SystemInfo,
-    TemperatureMetrics,
+    BatteryMetrics, CpuMetrics, DiskMetrics, EnergyMetrics, GpuLiveMetrics, MemoryMetrics,
+    NetworkMetrics, ProcessMetrics, SystemInfo, TemperatureMetrics,
 };
-use crate::system::{battery, cpu, disk, energy, info, memory, temperature};
+use crate::system::{battery, cpu, disk, energy, gpu, info, memory, network, processes, temperature};
 
 pub struct MacOSProvider {
     state: Arc<ProviderState>,
@@ -26,7 +26,8 @@ impl MacOSProvider {
         let sys = System::new_with_specifics(
             RefreshKind::nothing()
                 .with_cpu(CpuRefreshKind::everything())
-                .with_memory(sysinfo::MemoryRefreshKind::everything()),
+                .with_memory(MemoryRefreshKind::everything())
+                .with_processes(ProcessRefreshKind::everything()),
         );
         Self {
             state,
@@ -41,12 +42,16 @@ impl SystemProvider for MacOSProvider {
         // Two-sample refresh for meaningful usage percentages.
         sys.refresh_cpu_specifics(CpuRefreshKind::everything());
         thread::sleep(Duration::from_millis(120));
-        cpu::collect(&mut sys)
+        let metrics = cpu::collect(&mut sys)?;
+        *self.state.last_cpu.lock() = Some(metrics.usage);
+        Ok(metrics)
     }
 
     fn memory(&self) -> Result<MemoryMetrics, MetricError> {
         let mut sys = self.sys.lock();
-        memory::collect(&mut sys)
+        let metrics = memory::collect(&mut sys)?;
+        *self.state.last_ram.lock() = Some(metrics.percent);
+        Ok(metrics)
     }
 
     fn disk(&self) -> Result<DiskMetrics, MetricError> {
@@ -89,11 +94,26 @@ impl SystemProvider for MacOSProvider {
 
     fn system(&self) -> Result<SystemInfo, MetricError> {
         let sys = &self.sys;
-        self.state
-            .system_info
-            .get_or_collect(|| {
-                let mut sys = sys.lock();
-                info::collect(&mut sys)
-            })
+        self.state.system_info.get_or_collect(|| {
+            let mut sys = sys.lock();
+            info::collect(&mut sys)
+        })
+    }
+
+    fn processes(&self) -> Result<ProcessMetrics, MetricError> {
+        let mut sys = self.sys.lock();
+        processes::collect(&mut sys)
+    }
+
+    fn network(&self) -> Result<NetworkMetrics, MetricError> {
+        network::collect()
+    }
+
+    fn gpu(&self) -> Result<GpuLiveMetrics, MetricError> {
+        let names: Vec<String> = self
+            .system()
+            .map(|s| s.gpu.into_iter().map(|g| g.name).collect())
+            .unwrap_or_default();
+        gpu::collect(&names)
     }
 }

@@ -16,8 +16,8 @@ use std::sync::Arc;
 use crate::cache::ProviderState;
 use crate::error::MetricError;
 use crate::models::{
-    BatteryMetrics, CpuMetrics, DiskMetrics, EnergyMetrics, MemoryMetrics, SystemInfo,
-    TemperatureMetrics,
+    BatteryMetrics, CpuMetrics, DiskMetrics, EnergyMetrics, GpuLiveMetrics, MemoryMetrics,
+    NetworkMetrics, ProcessMetrics, SystemInfo, TemperatureMetrics,
 };
 
 /// Abstraction over OS-specific metric collection.
@@ -29,6 +29,9 @@ pub trait SystemProvider: Send + Sync {
     fn energy(&self) -> Result<EnergyMetrics, MetricError>;
     fn temperature(&self) -> Result<TemperatureMetrics, MetricError>;
     fn system(&self) -> Result<SystemInfo, MetricError>;
+    fn processes(&self) -> Result<ProcessMetrics, MetricError>;
+    fn network(&self) -> Result<NetworkMetrics, MetricError>;
+    fn gpu(&self) -> Result<GpuLiveMetrics, MetricError>;
 }
 
 /// Build the provider for the current target OS.

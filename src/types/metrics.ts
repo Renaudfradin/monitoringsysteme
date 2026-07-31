@@ -39,15 +39,106 @@ export interface EnergyMetrics {
   watts: number;
   percent: number;
   history: EnergySample[];
+  history24h: EnergySample[];
   estimated: boolean;
+}
+
+export interface TempSensor {
+  label: string;
+  celsius: number;
 }
 
 export interface TemperatureMetrics {
   cpuCelsius: number | null;
   gpuCelsius: number | null;
   ssdCelsius: number | null;
+  batteryCelsius: number | null;
+  maxCelsius: number | null;
   fansRpm: number[];
+  sensors: TempSensor[];
   available: boolean;
+}
+
+export interface ProcessEntry {
+  pid: number;
+  name: string;
+  cpuPercent: number;
+  memoryBytes: number;
+}
+
+export interface ProcessMetrics {
+  topCpu: ProcessEntry[];
+  topMemory: ProcessEntry[];
+}
+
+export interface NetworkInterface {
+  name: string;
+  rxBytesPerSec: number;
+  txBytesPerSec: number;
+  rxTotalBytes: number;
+  txTotalBytes: number;
+}
+
+export interface NetworkMetrics {
+  interfaces: NetworkInterface[];
+  totalRxBytesPerSec: number;
+  totalTxBytesPerSec: number;
+}
+
+export interface FanInfo {
+  name: string;
+  rpm: number;
+}
+
+export interface GpuLiveMetrics {
+  name: string;
+  utilizationPercent: number | null;
+  temperatureCelsius: number | null;
+  fans: FanInfo[];
+  available: boolean;
+}
+
+export type SectionId =
+  | "cpu"
+  | "memory"
+  | "disk"
+  | "energy"
+  | "battery"
+  | "temperature"
+  | "gpu"
+  | "network"
+  | "processes"
+  | "export"
+  | "plugins"
+  | "system";
+
+export type VisibleSections = Record<SectionId, boolean>;
+
+export type TrayMetricId = "cpu" | "memory" | "energy";
+
+export interface TrayDisplay {
+  /** Affiche l'icône dans la barre de menu macOS. */
+  enabled: boolean;
+  cpu: boolean;
+  memory: boolean;
+  energy: boolean;
+}
+
+export interface AppSettings {
+  theme: "system" | "light" | "dark" | string;
+  notificationsEnabled: boolean;
+  cpuAlertThreshold: number;
+  ramAlertThreshold: number;
+  launchAtLogin: boolean;
+  visibleSections: VisibleSections;
+  trayDisplay: TrayDisplay;
+}
+
+export interface PluginInfo {
+  id: string;
+  name: string;
+  description: string;
+  builtin: boolean;
 }
 
 export interface CpuInfo {
@@ -139,5 +230,8 @@ export interface AllMetrics {
   energy: EnergyMetrics | null;
   battery: BatteryMetrics | null;
   temperature: TemperatureMetrics | null;
+  processes: ProcessMetrics | null;
+  network: NetworkMetrics | null;
+  gpu: GpuLiveMetrics | null;
   system: SystemInfo | null;
 }

@@ -8,8 +8,8 @@ use super::SystemProvider;
 use crate::cache::ProviderState;
 use crate::error::MetricError;
 use crate::models::{
-    BatteryMetrics, CpuMetrics, DiskMetrics, EnergyMetrics, MemoryMetrics, SystemInfo,
-    TemperatureMetrics,
+    BatteryMetrics, CpuMetrics, DiskMetrics, EnergyMetrics, GpuLiveMetrics, MemoryMetrics,
+    NetworkMetrics, ProcessMetrics, SystemInfo, TemperatureMetrics,
 };
 
 pub struct LinuxProvider {
@@ -61,6 +61,24 @@ impl SystemProvider for LinuxProvider {
     }
 
     fn system(&self) -> Result<SystemInfo, MetricError> {
+        Err(MetricError::Unsupported(
+            "LinuxProvider not implemented yet".into(),
+        ))
+    }
+
+    fn processes(&self) -> Result<ProcessMetrics, MetricError> {
+        Err(MetricError::Unsupported(
+            "LinuxProvider not implemented yet".into(),
+        ))
+    }
+
+    fn network(&self) -> Result<NetworkMetrics, MetricError> {
+        Err(MetricError::Unsupported(
+            "LinuxProvider not implemented yet".into(),
+        ))
+    }
+
+    fn gpu(&self) -> Result<GpuLiveMetrics, MetricError> {
         Err(MetricError::Unsupported(
             "LinuxProvider not implemented yet".into(),
         ))

@@ -81,11 +81,13 @@ pub fn collect(inputs: EnergyInputs<'_>, history: &mut EnergyHistory) -> Result<
 
     history.push(watts);
     let samples = history.snapshot();
+    let samples_24h = history.snapshot_24h();
 
     Ok(EnergyMetrics {
         watts: (watts * 10.0).round() / 10.0,
         percent,
         history: samples,
+        history_24h: samples_24h,
         estimated: true,
     })
 }
