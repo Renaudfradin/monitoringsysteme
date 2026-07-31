@@ -61,15 +61,26 @@ pub fn run() {
             if let Err(e) = tray::setup_tray(app.handle()) {
                 eprintln!("tray setup failed: {e}");
             }
+            tray::update_tray_title(app.handle(), app_state.as_ref());
             tray::spawn_background_sampler(app.handle().clone(), Arc::clone(&app_state));
 
             Ok(())
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                // Keep running in the menu bar on close.
-                api.prevent_close();
-                let _ = window.hide();
+                let tray_enabled = window
+                    .app_handle()
+                    .try_state::<Arc<AppState>>()
+                    .map(|s| s.settings.get().tray_display.enabled)
+                    .unwrap_or(true);
+                if tray_enabled {
+                    // Keep running in the menu bar on close.
+                    api.prevent_close();
+                    let _ = window.hide();
+                } else {
+                    // No tray icon: closing the window exits the app.
+                    window.app_handle().exit(0);
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![

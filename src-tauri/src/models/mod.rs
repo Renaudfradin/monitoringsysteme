@@ -202,7 +202,7 @@ impl Default for VisibleSections {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct TrayDisplay {
-    /// When false, only the icon is shown (no title text).
+    /// When false, the tray icon is hidden from the menu bar.
     pub enabled: bool,
     pub cpu: bool,
     pub memory: bool,

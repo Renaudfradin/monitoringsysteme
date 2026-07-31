@@ -69,6 +69,20 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
 pub fn update_tray_title(app: &AppHandle, state: &AppState) {
     let tray_cfg = state.settings.get().tray_display;
+
+    if let Some(tray) = app.tray_by_id("main") {
+        let _ = tray.set_visible(tray_cfg.enabled);
+    }
+
+    // Without a menu-bar icon, keep the main window available so the user
+    // is not stranded with neither tray nor UI.
+    if !tray_cfg.enabled {
+        if let Some(w) = app.get_webview_window("main") {
+            let _ = w.show();
+        }
+        return;
+    }
+
     let cpu = (*state.provider_state.last_cpu.lock()).unwrap_or(0.0);
     let ram = (*state.provider_state.last_ram.lock()).unwrap_or(0.0);
     let watts = state
@@ -81,19 +95,17 @@ pub fn update_tray_title(app: &AppHandle, state: &AppState) {
 
     let mut parts: Vec<String> = Vec::new();
     let mut tip_parts: Vec<String> = Vec::new();
-    if tray_cfg.enabled {
-        if tray_cfg.cpu {
-            parts.push(format!("{:.0}%", cpu));
-            tip_parts.push(format!("CPU {cpu:.0}%"));
-        }
-        if tray_cfg.memory {
-            parts.push(format!("{:.0}%", ram));
-            tip_parts.push(format!("RAM {ram:.0}%"));
-        }
-        if tray_cfg.energy {
-            parts.push(format!("{:.0}W", watts));
-            tip_parts.push(format!("{watts:.1} W"));
-        }
+    if tray_cfg.cpu {
+        parts.push(format!("{:.0}%", cpu));
+        tip_parts.push(format!("CPU {cpu:.0}%"));
+    }
+    if tray_cfg.memory {
+        parts.push(format!("{:.0}%", ram));
+        tip_parts.push(format!("RAM {ram:.0}%"));
+    }
+    if tray_cfg.energy {
+        parts.push(format!("{:.0}W", watts));
+        tip_parts.push(format!("{watts:.1} W"));
     }
 
     let title = if parts.is_empty() {

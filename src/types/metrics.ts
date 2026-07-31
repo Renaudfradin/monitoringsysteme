@@ -117,7 +117,7 @@ export type VisibleSections = Record<SectionId, boolean>;
 export type TrayMetricId = "cpu" | "memory" | "energy";
 
 export interface TrayDisplay {
-  /** Affiche le texte à côté de l'icône dans la barre de menu. */
+  /** Affiche l'icône dans la barre de menu macOS. */
   enabled: boolean;
   cpu: boolean;
   memory: boolean;

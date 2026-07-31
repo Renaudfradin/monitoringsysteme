@@ -584,7 +584,7 @@ function SectionsPanel({
         Barre de menu
       </p>
       <p className="mb-2 text-[12px] text-[var(--color-muted)]">
-        Texte à côté de l’icône macOS (ex. 38% · 75% · 32W).
+        Icône macOS et texte optionnel à côté (ex. 38% · 75% · 32W).
       </p>
       <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-[13px] hover:bg-black/5 dark:hover:bg-white/10">
         <span>Afficher dans la barre de menu</span>
@@ -594,10 +594,16 @@ function SectionsPanel({
           onChange={(e) => onTrayEnabled(e.target.checked)}
         />
       </label>
-      <ul className={`mt-1 space-y-1 ${tray.enabled ? "" : "opacity-45"}`}>
+      <ul className={`mt-1 space-y-1 ${tray.enabled ? "" : "opacity-45 pointer-events-none"}`}>
         {TRAY_OPTIONS.map(({ id, label, unit }) => (
           <li key={id}>
-            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-[13px] hover:bg-black/5 dark:hover:bg-white/10">
+            <label
+              className={`flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-[13px] ${
+                tray.enabled
+                  ? "cursor-pointer hover:bg-black/5 dark:hover:bg-white/10"
+                  : "cursor-default"
+              }`}
+            >
               <span>
                 {label}
                 <span className="ml-1 text-[var(--color-muted)]">({unit})</span>
@@ -613,7 +619,9 @@ function SectionsPanel({
         ))}
       </ul>
       <p className="mt-2 rounded-lg bg-black/5 px-3 py-2 text-center text-[13px] tabular-nums dark:bg-white/10">
-        {trayPreview ?? "Icône seule"}
+        {!tray.enabled
+          ? "Masqué de la barre de menu"
+          : (trayPreview ?? "Icône seule")}
       </p>
 
       <p className="mt-4 mb-2 text-[11px] font-semibold tracking-wide text-[var(--color-muted)] uppercase">
@@ -670,9 +678,13 @@ function formatTrayPreview(
 }
 
 function SettingsHint({ settings }: { settings: AppSettings }) {
+  const trayOn = settings.trayDisplay?.enabled ?? true;
   return (
     <p className="mb-4 text-center text-[11px] text-[var(--color-muted)]">
-      Thème {settings.theme} · fermer la fenêtre = barre de menu
+      Thème {settings.theme}
+      {trayOn
+        ? " · fermer la fenêtre = barre de menu"
+        : " · barre de menu masquée · fermer = quitter"}
     </p>
   );
 }
